@@ -53,7 +53,7 @@ public class SampleOreBlock extends Block implements IColorable {
 
 	@Override
 	public MutableComponent getName() {
-		return Component.translatable(localisedName);
+		return super.getName();
 	}
 
 	@Override
