@@ -76,7 +76,7 @@ public class GemOreBlockWithParticles extends DropExperienceBlock implements ICo
 
 	@Override
 	public MutableComponent getName() {
-		return Component.translatable(localisedName);
+		return super.getName();
 	}
 
 	@Override
