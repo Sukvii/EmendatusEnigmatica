@@ -33,16 +33,24 @@ import com.ridanisaurus.emendatusenigmatica.api.EmendatusDataRegistry;
 import com.ridanisaurus.emendatusenigmatica.plugin.deposit.DepositType;
 import com.ridanisaurus.emendatusenigmatica.plugin.deposit.DepositValidationManager;
 import com.ridanisaurus.emendatusenigmatica.plugin.deposit.IDepositProcessor;
-import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.*;
+import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.DenseDepositProcessor;
+import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.DikeDepositProcessor;
+import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.GeodeDepositProcessor;
+import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.SphereDepositProcessor;
+import com.ridanisaurus.emendatusenigmatica.plugin.deposit.processors.VanillaDepositProcessor;
 import com.ridanisaurus.emendatusenigmatica.plugin.model.StrataModel;
 import com.ridanisaurus.emendatusenigmatica.plugin.model.compat.CompatModel;
 import com.ridanisaurus.emendatusenigmatica.plugin.model.material.MaterialModel;
-import com.ridanisaurus.emendatusenigmatica.util.analytics.Analytics;
 import com.ridanisaurus.emendatusenigmatica.util.FileHelper;
+import com.ridanisaurus.emendatusenigmatica.util.analytics.Analytics;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Deprecated(since = "2.2.0-Alpha-4", forRemoval = true)
@@ -54,6 +62,11 @@ public class ModelLoader {
     public static final List<String> DEPOSIT_TYPES = new ArrayList<>();
     public static final List<IDepositProcessor> ACTIVE_PROCESSORS = new ArrayList<>();
     public static final Map<String, Function<JsonObject, IDepositProcessor>> DEPOSIT_PROCESSORS = new HashMap<>();
+
+    public static void loadLegacyData(@NotNull EmendatusDataRegistry registry) {
+        resetLegacyState();
+        load(registry);
+    }
 
     protected static void load(EmendatusDataRegistry registry) {
         // Analytics.
@@ -72,6 +85,15 @@ public class ModelLoader {
         registerMaterials(materialDefinition, registry);
         registerDeposits(depositJsonDefinitionsMap, registry);
 //        registerCompat(compatDefinition, registry);
+    }
+
+    private static void resetLegacyState() {
+        MATERIAL_IDS.clear();
+        STRATA_IDS.clear();
+        DEPOSIT_IDS.clear();
+        STRATA_SUFFIXES.clear();
+        DEPOSIT_TYPES.clear();
+        ACTIVE_PROCESSORS.clear();
     }
 
     private static void registerStrata(@NotNull Map<Path, JsonObject> definitions, EmendatusDataRegistry registry) {

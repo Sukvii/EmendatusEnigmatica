@@ -8,7 +8,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 
-@EventBusSubscriber(modid = Reference.MOD_ID)
+@EventBusSubscriber(modid = Reference.MOD_ID, value = Dist.CLIENT)
 public class ClientExtensionsEvent {
     @SubscribeEvent
     public static void register(RegisterClientExtensionsEvent event) {

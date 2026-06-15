@@ -26,6 +26,7 @@ package com.ridanisaurus.emendatusenigmatica.loader;
 
 import com.google.common.base.Stopwatch;
 import com.ridanisaurus.emendatusenigmatica.EmendatusEnigmatica;
+import com.ridanisaurus.emendatusenigmatica.api.IEmendatusPlugin;
 import com.ridanisaurus.emendatusenigmatica.api.IEEPlugin;
 import com.ridanisaurus.emendatusenigmatica.api.annotation.EmendatusPluginReference;
 import com.ridanisaurus.emendatusenigmatica.api.config.ConfigCreationContext;
@@ -36,6 +37,7 @@ import com.ridanisaurus.emendatusenigmatica.plugin.VanillaPlugin;
 import com.ridanisaurus.emendatusenigmatica.util.ClassHelper;
 import com.ridanisaurus.emendatusenigmatica.util.analytics.Analytics;
 import net.minecraft.Util;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.config.ModConfig;
@@ -96,8 +98,9 @@ public class EEPluginLoader {
     private void scanForClasses(){
         Stopwatch s = Stopwatch.createStarted();
         for (Class<?> annotatedClass : ClassHelper.getAnnotatedClasses(EmendatusPluginReference.class)) {
-            if (!IEEPlugin.class.isAssignableFrom(annotatedClass)) {
-                logger.error("\"{}\" has an annotation but it doesn't implement IEEPlugin.", annotatedClass.getName());
+            boolean isLegacyPlugin = IEmendatusPlugin.class.isAssignableFrom(annotatedClass);
+            if (!IEEPlugin.class.isAssignableFrom(annotatedClass) && !isLegacyPlugin) {
+                logger.error("\"{}\" has an annotation but it doesn't implement IEEPlugin or IEmendatusPlugin.", annotatedClass.getName());
                 continue;
             }
 
@@ -114,16 +117,26 @@ public class EEPluginLoader {
                 if (Objects.isNull(pluginConstructor))
                     throw new IllegalStateException("Class of the plugin \"%s\" doesn't have a no-arg constructor.".formatted(name));
 
-                var generic = ClassHelper.getGenericInterfaceType(annotatedClass, IEEPlugin.class);
-                if (Objects.isNull(generic))
-                    throw new InvalidClassException("Class of the plugin \"%s\" implements IEEPlugin interface as a raw type.".formatted(name));
+                Class<?> generic = ClassHelper.getGenericInterfaceType(annotatedClass, isLegacyPlugin ? IEmendatusPlugin.class : IEEPlugin.class);
+                if (Objects.isNull(generic)) {
+                    if (isLegacyPlugin) {
+                        generic = Void.class;
+                    } else {
+                        throw new InvalidClassException("Class of the plugin \"%s\" implements IEEPlugin interface as a raw type.".formatted(name));
+                    }
+                }
                 Constructor<?> registryConstructor = ClassHelper.getNoArgConstructor(generic);
                 if (!generic.equals(Void.class) && Objects.isNull(registryConstructor))
                     throw new IllegalStateException("Registry of the plugin \"%s\" doesn't have a no-arg constructor.".formatted(name));
 
+                Object pluginInstance = pluginConstructor.newInstance();
+                IEEPlugin<Object> eePlugin = isLegacyPlugin ?
+                    new LegacyPluginAdapter<>((IEmendatusPlugin<Object>) pluginInstance) :
+                    (IEEPlugin<Object>) pluginInstance;
+
                 // Construction of the plugin
                 var plugin = new EEPlugin(
-                    (IEEPlugin<Object>) pluginConstructor.newInstance(),
+                    eePlugin,
                     annotation,
                     Objects.nonNull(registryConstructor)? registryConstructor.newInstance(): null
                 );
@@ -134,7 +147,7 @@ public class EEPluginLoader {
                     plugins.add(plugin);
                 }
 
-                logger.info("Registered plugin \"{}\"", name);
+                logger.info("Registered {}plugin \"{}\"", isLegacyPlugin ? "legacy " : "", name);
             } catch (Throwable e) {
                 logger.error("Failed registration of plugin \"{}\"", name, e);
             }
@@ -262,4 +275,41 @@ public class EEPluginLoader {
      * @param registry Plugin Registry object (Nullable)
      */
     private record EEPlugin(IEEPlugin<Object> plugin, EmendatusPluginReference annotation, @Nullable Object registry) {}
+
+    @SuppressWarnings({"deprecation", "removal"})
+    private static final class LegacyPluginAdapter<T> implements IEEPlugin<T> {
+        private final IEmendatusPlugin<T> legacyPlugin;
+
+        private LegacyPluginAdapter(IEmendatusPlugin<T> legacyPlugin) {
+            this.legacyPlugin = legacyPlugin;
+        }
+
+        @Override
+        public void setup(SetupContext ctx) {
+            legacyPlugin.setup();
+        }
+
+        @Override
+        public void extendConfig(ConfigCreationContext ctx) {
+            legacyPlugin.extendConfig(ctx);
+        }
+
+        @Override
+        public void provideDefaultConfiguration(DCCreationContext ctx) {
+            legacyPlugin.provideDefaultConfiguration(ctx);
+        }
+
+        @Override
+        public void registerDynamicDataGen(EEDataGenerator generator, CompletableFuture<HolderLookup.Provider> providers, T registry) {
+            legacyPlugin.registerDynamicDataGen(generator, providers, EmendatusEnigmatica.getInstance().getDataRegistry(), registry);
+        }
+
+        @Override
+        public void register(T registry) {
+            var dataRegistry = EmendatusEnigmatica.getInstance().getDataRegistry();
+            legacyPlugin.load(dataRegistry, registry);
+            legacyPlugin.registerMinecraft(dataRegistry, registry);
+            legacyPlugin.finish(dataRegistry);
+        }
+    }
 }

@@ -26,6 +26,7 @@ package com.ridanisaurus.emendatusenigmatica;
 
 import com.mojang.logging.LogUtils;
 import com.ridanisaurus.emendatusenigmatica.api.EmendatusDataRegistry;
+import com.ridanisaurus.emendatusenigmatica.api.validation.RegistryValidationManager;
 import com.ridanisaurus.emendatusenigmatica.config.EEConfig;
 import com.ridanisaurus.emendatusenigmatica.datagen.DataGeneratorFactory;
 import com.ridanisaurus.emendatusenigmatica.datagen.EEDataGenerator;
@@ -33,12 +34,12 @@ import com.ridanisaurus.emendatusenigmatica.datagen.EEPackFinder;
 import com.ridanisaurus.emendatusenigmatica.datagen.gen.LangGen;
 import com.ridanisaurus.emendatusenigmatica.loader.EEModelLoader;
 import com.ridanisaurus.emendatusenigmatica.loader.EEPluginLoader;
-import com.ridanisaurus.emendatusenigmatica.api.validation.RegistryValidationManager;
 import com.ridanisaurus.emendatusenigmatica.loader.SetupContext;
-import com.ridanisaurus.emendatusenigmatica.util.analytics.Analytics;
+import com.ridanisaurus.emendatusenigmatica.plugin.ModelLoader;
 import com.ridanisaurus.emendatusenigmatica.registries.EERegistrar;
 import com.ridanisaurus.emendatusenigmatica.tabs.EECreativeTab;
 import com.ridanisaurus.emendatusenigmatica.util.Reference;
+import com.ridanisaurus.emendatusenigmatica.util.analytics.Analytics;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.CreativeModeTab;
 import net.neoforged.bus.api.IEventBus;
@@ -52,7 +53,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.registries.*;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
@@ -66,6 +68,7 @@ public class EmendatusEnigmatica {
     private final EEModelLoader modelLoader;
     private final EEPluginLoader pluginLoader;
     private final EEDataGenerator generator;
+    private final EmendatusDataRegistry legacyDataRegistry;
 
     // Creative Tabs Registration
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Reference.MOD_ID);
@@ -98,9 +101,11 @@ public class EmendatusEnigmatica {
 
         this.pluginLoader = new EEPluginLoader();
         this.modelLoader = new EEModelLoader();
+        this.legacyDataRegistry = new EmendatusDataRegistry();
         EEConfig.setupConfigs(modContainer, pluginLoader);
         this.pluginLoader.setup(new SetupContext(pluginLoader, modelLoader, this));
         this.pluginLoader.load(modelLoader);
+        ModelLoader.loadLegacyData(this.legacyDataRegistry);
 
         EERegistrar.finalize(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
@@ -134,7 +139,7 @@ public class EmendatusEnigmatica {
     @Deprecated(since = "2.2.0-Alpha-4", forRemoval = true)
     @SuppressWarnings("deprecated removal")
     public EmendatusDataRegistry getDataRegistry() {
-        return null;
+        return legacyDataRegistry;
     }
 
     private void populateCreativeTab(BuildCreativeModeTabContentsEvent event) {
@@ -142,12 +147,12 @@ public class EmendatusEnigmatica {
     }
 
     private void addPackFinder(@NotNull AddPackFindersEvent event) {
-        event.addRepositorySource(new EEPackFinder(event.getPackType()));
         if (!pluginLoader.isFinished()) {
             logger.error("Something is populating Pack Repository too early! Skipping running Data Generation.");
             return;
         }
         generator.run();
+        event.addRepositorySource(new EEPackFinder(event.getPackType()));
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

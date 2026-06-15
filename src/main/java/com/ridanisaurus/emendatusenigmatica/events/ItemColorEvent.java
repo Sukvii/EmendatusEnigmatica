@@ -40,7 +40,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 
-@EventBusSubscriber(modid = Reference.MOD_ID)
+@EventBusSubscriber(modid = Reference.MOD_ID, value = Dist.CLIENT)
 public class ItemColorEvent {
 	@SubscribeEvent
 	public static void itemColorEvent(RegisterColorHandlersEvent.Item event) {
